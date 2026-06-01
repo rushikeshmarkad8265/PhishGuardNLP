@@ -24,10 +24,11 @@
           <div class="gmail-actions">
             <button class="primary" type="button" id="connect-gmail-btn">Connect Gmail</button>
             <button class="secondary" type="button" id="scan-gmail-btn">Scan inbox</button>
+            <button class="secondary wide-action" type="button" id="scan-all-btn">Scan mailbox</button>
           </div>
           <div class="scan-controls">
-            <input id="gmail-query" value="in:inbox newer_than:1d" aria-label="Gmail search query">
-            <input id="gmail-limit" type="number" min="1" max="25" value="10" aria-label="Message limit">
+            <input id="gmail-query" value="in:anywhere" aria-label="Gmail search query">
+            <input id="gmail-limit" type="number" min="1" max="5000" value="5000" aria-label="Message limit">
           </div>
           <div id="live-status" class="live-status">Live scan inactive</div>
         </div>
@@ -67,16 +68,6 @@
           </div>
         </div>
 
-        <div class="risk-band" id="risk-band">
-          <div>
-            <span class="eyebrow">Risk tag</span>
-            <div class="risk-tag" id="risk-tag">Awaiting analysis</div>
-          </div>
-          <div class="score-ring" aria-label="Risk score">
-            <span id="risk-score">0</span>
-          </div>
-        </div>
-
         <div class="guidance" id="guidance">Connect Gmail to scan real messages, or paste an email for manual testing.</div>
 
         <div class="overview-grid">
@@ -98,42 +89,61 @@
           </div>
         </div>
 
-        <div class="panel gmail-results-panel">
-          <div class="section-title">Gmail scan results</div>
-          <div id="gmail-results" class="gmail-results empty">No Gmail messages scanned yet</div>
-        </div>
+        <div class="panel mailbox-panel">
+          <div class="mailbox-head">
+            <div class="section-title">Mailbox security view</div>
+            <div id="mailbox-state" class="mailbox-state">No mailbox scan yet</div>
+          </div>
+          <div class="mailbox-layout">
+            <div class="mailbox-list">
+              <div id="gmail-results" class="gmail-results empty">No Gmail messages scanned yet</div>
+            </div>
+            <article id="mail-reader" class="mail-reader empty">Select a message to read its content.</article>
+            <aside class="security-panel">
+              <div class="risk-band" id="risk-band">
+                <div>
+                  <span class="eyebrow">Risk tag</span>
+                  <div class="risk-tag" id="risk-tag">Awaiting analysis</div>
+                </div>
+                <div class="score-ring" aria-label="Risk score">
+                  <span id="risk-score">0</span>
+                </div>
+              </div>
 
-        <div class="metric-grid">
-          <div class="metric">
-            <span>Emotional</span>
-            <strong id="emotional-score">0</strong>
-          </div>
-          <div class="metric">
-            <span>Professional</span>
-            <strong id="professional-score">0</strong>
-          </div>
-          <div class="metric">
-            <span>Links</span>
-            <strong id="links-score">0</strong>
-          </div>
-          <div class="metric">
-            <span>Attachments</span>
-            <strong id="attachments-score">0</strong>
-          </div>
-          <div class="metric">
-            <span>Metadata</span>
-            <strong id="metadata-score">0</strong>
-          </div>
-          <div class="metric">
-            <span>Words</span>
-            <strong id="word-count">0</strong>
-          </div>
-        </div>
+              <div class="metric-grid">
+                <div class="metric">
+                  <span>Emotional</span>
+                  <strong id="emotional-score">0</strong>
+                </div>
+                <div class="metric">
+                  <span>Professional</span>
+                  <strong id="professional-score">0</strong>
+                </div>
+                <div class="metric">
+                  <span>Links</span>
+                  <strong id="links-score">0</strong>
+                </div>
+                <div class="metric">
+                  <span>Attachments</span>
+                  <strong id="attachments-score">0</strong>
+                </div>
+                <div class="metric">
+                  <span>Metadata</span>
+                  <strong id="metadata-score">0</strong>
+                </div>
+                <div class="metric">
+                  <span>Words</span>
+                  <strong id="word-count">0</strong>
+                </div>
+              </div>
 
-        <div class="panel">
-          <div class="section-title">Explanation</div>
-          <p id="summary" class="summary">No indicators have been evaluated yet.</p>
-          <div id="indicator-list" class="indicator-list empty">No matched indicators</div>
+              <div class="security-explanation">
+                <div class="section-title">Security risk</div>
+                <p id="summary" class="summary">No indicators have been evaluated yet.</p>
+                <div id="indicator-list" class="indicator-list empty">No matched indicators</div>
+              </div>
+            </aside>
+          </div>
         </div>
 
         <div class="panel history-panel">

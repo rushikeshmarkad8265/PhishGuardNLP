@@ -159,11 +159,14 @@ def create_app() -> Flask:
 
     @app.get("/api/gmail/scan")
     def gmail_scan():
+        scan_all = request.args.get("all", "false").lower() == "true"
         try:
-            limit = max(1, min(25, int(request.args.get("limit", 10))))
+            limit = max(1, min(5000, int(request.args.get("limit", 10))))
         except ValueError:
             limit = 10
         query = request.args.get("query", "newer_than:30d")
+        if scan_all:
+            query = request.args.get("query", "in:anywhere") or "in:anywhere"
 
         try:
             messages = scan_messages(max_results=limit, query=query)

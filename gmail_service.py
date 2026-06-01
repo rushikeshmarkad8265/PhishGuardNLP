@@ -76,13 +76,34 @@ def build_gmail_service(force_auth: bool = False):
 
 def scan_messages(max_results: int = 10, query: str = "newer_than:30d") -> list[dict[str, Any]]:
     service = build_gmail_service()
-    response = service.users().messages().list(userId="me", maxResults=max_results, q=query).execute()
-    messages = response.get("messages", [])
     scanned = []
+    page_token = None
 
-    for item in messages:
-        message = service.users().messages().get(userId="me", id=item["id"], format="full").execute()
-        scanned.append(parse_message(message))
+    while len(scanned) < max_results:
+        remaining = max_results - len(scanned)
+        request = {
+            "userId": "me",
+            "maxResults": min(100, remaining),
+        }
+        if query:
+            request["q"] = query
+        if page_token:
+            request["pageToken"] = page_token
+
+        response = service.users().messages().list(**request).execute()
+        messages = response.get("messages", [])
+        if not messages:
+            break
+
+        for item in messages:
+            message = service.users().messages().get(userId="me", id=item["id"], format="full").execute()
+            scanned.append(parse_message(message))
+            if len(scanned) >= max_results:
+                break
+
+        page_token = response.get("nextPageToken")
+        if not page_token:
+            break
 
     return scanned
 

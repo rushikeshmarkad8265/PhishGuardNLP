@@ -35,6 +35,9 @@ http://127.0.0.1:5000
 - Gmail API read-only inbox scanning.
 - Connected Gmail account summary with mailbox counts.
 - Live inbox polling for recent messages.
+- Gmail-like mailbox view with mail list, message reader, and right-side security risk panel.
+- Full mailbox scanning with paginated Gmail API reads.
+- Red highlighting for account-security related emails.
 - Metadata checks for sender/reply-to/return-path mismatch and SPF, DKIM, or DMARC warnings.
 - Link checks for non-HTTPS URLs, IP-address links, shorteners, punycode domains, and misleading `@` URLs.
 - Attachment checks that raise risk for `.pdf`, archives, macro documents, HTML files, and mark executables such as `.exe` as high risk.

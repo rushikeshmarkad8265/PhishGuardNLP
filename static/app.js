@@ -7,10 +7,13 @@ const historyList = document.querySelector("#history-list");
 const gmailStatus = document.querySelector("#gmail-status");
 const connectGmailBtn = document.querySelector("#connect-gmail-btn");
 const scanGmailBtn = document.querySelector("#scan-gmail-btn");
+const scanAllBtn = document.querySelector("#scan-all-btn");
 const gmailQuery = document.querySelector("#gmail-query");
 const gmailLimit = document.querySelector("#gmail-limit");
 const gmailResults = document.querySelector("#gmail-results");
 const liveStatus = document.querySelector("#live-status");
+const mailboxState = document.querySelector("#mailbox-state");
+const mailReader = document.querySelector("#mail-reader");
 const riskBand = document.querySelector("#risk-band");
 const riskTag = document.querySelector("#risk-tag");
 const riskScore = document.querySelector("#risk-score");
@@ -72,7 +75,11 @@ connectGmailBtn.addEventListener("click", async () => {
 });
 
 scanGmailBtn.addEventListener("click", async () => {
-  await scanGmail({ silent: false, selectFirst: true });
+  await scanGmail({ silent: false, selectFirst: true, all: false });
+});
+
+scanAllBtn.addEventListener("click", async () => {
+  await scanGmail({ silent: false, selectFirst: true, all: true });
 });
 
 async function analyzeEmail() {
@@ -104,19 +111,23 @@ async function analyzeEmail() {
 async function scanGmail(options = {}) {
   const silent = Boolean(options.silent);
   const selectFirst = options.selectFirst !== false;
+  const scanAll = Boolean(options.all);
   if (scanInProgress) return;
 
   scanInProgress = true;
   if (!silent) {
-    setGmailBusy(true, "Scanning...");
+    setGmailBusy(true, scanAll ? "Scanning mailbox..." : "Scanning...");
     gmailResults.className = "gmail-results empty";
-    gmailResults.textContent = "Scanning Gmail messages...";
+    gmailResults.textContent = scanAll ? "Scanning mailbox. This can take a little while..." : "Scanning Gmail messages...";
+    mailboxState.textContent = "Scanning...";
   }
   updateLiveStatus("Checking inbox...");
 
+  const query = scanAll ? (gmailQuery.value.trim() || "in:anywhere") : "in:inbox newer_than:1d";
   const params = new URLSearchParams({
-    query: gmailQuery.value.trim() || "in:inbox newer_than:1d",
+    query,
     limit: gmailLimit.value || "10",
+    all: scanAll ? "true" : "false",
   });
 
   try {
@@ -133,10 +144,12 @@ async function scanGmail(options = {}) {
     if (selectFirst && gmailMessages.length && !selectedGmailId) {
       openSelectedMail(gmailMessages[0]);
     }
+    mailboxState.textContent = `${gmailMessages.length} scanned mail(s) loaded`;
     updateLiveStatus(newCount ? `${newCount} new mail(s) analyzed` : "Inbox checked, no new mail");
     await loadHistory();
   } catch (error) {
     gmailResults.textContent = "Gmail scan failed. Check that the server is running.";
+    mailboxState.textContent = "Scan failed";
     updateLiveStatus("Live scan paused after an error");
   } finally {
     scanInProgress = false;
@@ -196,22 +209,22 @@ function renderGmailResults(messages) {
     const id = message.gmail_id || message.subject || String(index);
     const sender = message.from || message.metadata?.from || "Unknown sender";
     const snippet = message.snippet || message.body || "";
+    const accountSecurity = isAccountSecurityMail(message);
     const attachmentText = message.attachments?.length
       ? `${message.attachments.length} attachment(s)`
       : "No attachments";
     const linkText = message.links?.length ? `${message.links.length} link(s)` : "No links";
     return `
-      <article class="gmail-item" data-id="${escapeHtml(id)}">
+      <article class="gmail-item ${accountSecurity ? "account-security" : ""}" data-id="${escapeHtml(id)}">
         <button class="gmail-result" type="button" data-index="${index}">
           <span>
             <strong>${escapeHtml(message.subject || "(No subject)")}</strong>
             <small>From: ${escapeHtml(sender)}</small>
-            <small>${escapeHtml(attachmentText)} | ${escapeHtml(linkText)}</small>
+            <small>${accountSecurity ? "Account security | " : ""}${escapeHtml(attachmentText)} | ${escapeHtml(linkText)}</small>
             <small>${escapeHtml(snippet)}</small>
           </span>
           <b class="tag-${tag}">${escapeHtml(message.risk_tag)} ${message.risk_score}</b>
         </button>
-        <div class="inline-mail-detail" data-detail-for="${escapeHtml(id)}"></div>
       </article>
     `;
   }).join("");
@@ -233,15 +246,14 @@ function renderGmailResults(messages) {
 function openSelectedMail(message) {
   selectedGmailId = message.gmail_id || message.subject || "";
   renderResult(message);
-  renderInlineMailDetail(message);
+  renderMailReader(message);
   markSelectedMail();
 }
 
 function collapseSelectedMail() {
   selectedGmailId = "";
-  gmailResults.querySelectorAll(".inline-mail-detail").forEach((detail) => {
-    detail.innerHTML = "";
-  });
+  mailReader.className = "mail-reader empty";
+  mailReader.textContent = "Select a message to read its content.";
   markSelectedMail();
 }
 
@@ -253,10 +265,11 @@ function markSelectedMail() {
   });
 }
 
-function renderInlineMailDetail(message) {
+function renderMailReader(message) {
   const sender = message.from || message.metadata?.from || "Unknown sender";
   const date = message.date || "Unknown date";
   const body = message.body || message.snippet || "No readable plain-text content was found in this message.";
+  const accountSecurity = isAccountSecurityMail(message);
   const reasons = message.indicators?.length
     ? message.indicators.map((indicator) => `
       <li>
@@ -277,19 +290,16 @@ function renderInlineMailDetail(message) {
     `).join("")
     : "<li>No attachments found</li>";
 
-  gmailResults.querySelectorAll(".inline-mail-detail").forEach((detail) => {
-    detail.innerHTML = "";
-  });
-
-  const id = message.gmail_id || message.subject || "";
-  const detail = gmailResults.querySelector(`[data-detail-for="${cssEscape(id)}"]`);
-  if (!detail) return;
-
-  detail.innerHTML = `
-    <div class="selected-mail">
-      <div class="section-title">Mail details</div>
+  mailReader.className = `mail-reader ${accountSecurity ? "account-security-reader" : ""}`;
+  mailReader.innerHTML = `
+    <div class="reader-header">
+      <div>
+        <span class="section-title">Mail content</span>
+        <h2>${escapeHtml(message.subject || "(No subject)")}</h2>
+      </div>
+      ${accountSecurity ? '<strong class="security-alert">Account security</strong>' : ""}
+    </div>
     <div class="mail-meta">
-      <div><span>Subject</span><strong>${escapeHtml(message.subject || "(No subject)")}</strong></div>
       <div><span>Sender</span><strong>${escapeHtml(sender)}</strong></div>
       <div><span>Date</span><strong>${escapeHtml(date)}</strong></div>
     </div>
@@ -311,8 +321,28 @@ function renderInlineMailDetail(message) {
       <h2>Full mail content</h2>
       <pre>${escapeHtml(body)}</pre>
     </div>
-    </div>
   `;
+}
+
+function isAccountSecurityMail(message) {
+  const text = `${message.subject || ""} ${message.body || ""} ${message.snippet || ""}`.toLowerCase();
+  const patterns = [
+    "account security",
+    "security alert",
+    "password",
+    "verify your account",
+    "account verification",
+    "suspicious activity",
+    "login attempt",
+    "sign-in attempt",
+    "2fa",
+    "two-factor",
+    "account recovery",
+    "reset your password",
+    "unusual activity",
+    "access suspension",
+  ];
+  return patterns.some((pattern) => text.includes(pattern));
 }
 
 function renderResult(result) {
@@ -364,6 +394,7 @@ function resetResults() {
   collapseSelectedMail();
   gmailMessages = [];
   renderScanOverview();
+  mailboxState.textContent = "No mailbox scan yet";
   wordCount.textContent = "0";
   Object.values(metricIds).forEach((node) => {
     node.textContent = "0";
@@ -453,6 +484,7 @@ function updateLiveStatus(message) {
 function setGmailBusy(isBusy, label = "") {
   connectGmailBtn.disabled = isBusy;
   scanGmailBtn.disabled = isBusy;
+  scanAllBtn.disabled = isBusy;
   if (label) {
     scanGmailBtn.textContent = label;
   } else {
