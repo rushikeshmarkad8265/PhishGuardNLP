@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PhishGuard Risk Tagger</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+  <main class="shell">
+    <section class="workspace">
+      <aside class="panel input-panel">
+        <div class="brand">
+          <div class="mark">PG</div>
+          <div>
+            <h1>PhishGuard</h1>
+            <p>Gmail risk tagging with text, metadata, links, and attachments</p>
+          </div>
+        </div>
+
+        <div class="gmail-box">
+          <div class="section-title">Gmail API</div>
+          <div id="gmail-status" class="setup-status">Checking Gmail setup...</div>
+          <div class="gmail-actions">
+            <button class="primary" type="button" id="connect-gmail-btn">Connect Gmail</button>
+            <button class="secondary" type="button" id="scan-gmail-btn">Scan inbox</button>
+          </div>
+          <div class="scan-controls">
+            <input id="gmail-query" value="in:inbox newer_than:1d" aria-label="Gmail search query">
+            <input id="gmail-limit" type="number" min="1" max="25" value="10" aria-label="Message limit">
+          </div>
+          <div id="live-status" class="live-status">Live scan inactive</div>
+        </div>
+
+        <form id="email-form" class="email-form">
+          <label for="subject">Subject</label>
+          <input id="subject" name="subject" autocomplete="off" placeholder="Account verification required">
+
+          <label for="body">Email body</label>
+          <textarea id="body" name="body" spellcheck="true" placeholder="Paste the email content here..."></textarea>
+
+          <div class="actions">
+            <button class="primary" type="submit">Analyze risk</button>
+            <button class="secondary" type="button" id="clear-btn">Clear</button>
+          </div>
+        </form>
+
+        <div class="samples">
+          <div class="section-title">Case studies</div>
+          <div id="sample-list" class="sample-list"></div>
+        </div>
+      </aside>
+
+      <section class="results">
+        <div class="top-strip">
+          <div class="account-card" id="account-card">
+            <div class="account-avatar" id="account-avatar">G</div>
+            <div>
+              <span>Connected account</span>
+              <strong id="account-email">Not connected</strong>
+              <small id="account-meta">Gmail read-only mode</small>
+            </div>
+          </div>
+          <div class="reply-note">
+            <span>Reply mode</span>
+            <strong>Read-only</strong>
+          </div>
+        </div>
+
+        <div class="risk-band" id="risk-band">
+          <div>
+            <span class="eyebrow">Risk tag</span>
+            <div class="risk-tag" id="risk-tag">Awaiting analysis</div>
+          </div>
+          <div class="score-ring" aria-label="Risk score">
+            <span id="risk-score">0</span>
+          </div>
+        </div>
+
+        <div class="guidance" id="guidance">Connect Gmail to scan real messages, or paste an email for manual testing.</div>
+
+        <div class="overview-grid">
+          <div class="overview-card">
+            <span>Scanned mails</span>
+            <strong id="mail-count">0</strong>
+          </div>
+          <div class="overview-card">
+            <span>High risk</span>
+            <strong id="high-count">0</strong>
+          </div>
+          <div class="overview-card">
+            <span>Medium risk</span>
+            <strong id="medium-count">0</strong>
+          </div>
+          <div class="overview-card">
+            <span>Low risk</span>
+            <strong id="low-count">0</strong>
+          </div>
+        </div>
+
+        <div class="panel gmail-results-panel">
+          <div class="section-title">Gmail scan results</div>
+          <div id="gmail-results" class="gmail-results empty">No Gmail messages scanned yet</div>
+        </div>
+
+        <div class="metric-grid">
+          <div class="metric">
+            <span>Emotional</span>
+            <strong id="emotional-score">0</strong>
+          </div>
+          <div class="metric">
+            <span>Professional</span>
+            <strong id="professional-score">0</strong>
+          </div>
+          <div class="metric">
+            <span>Links</span>
+            <strong id="links-score">0</strong>
+          </div>
+          <div class="metric">
+            <span>Attachments</span>
+            <strong id="attachments-score">0</strong>
+          </div>
+          <div class="metric">
+            <span>Metadata</span>
+            <strong id="metadata-score">0</strong>
+          </div>
+          <div class="metric">
+            <span>Words</span>
+            <strong id="word-count">0</strong>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="section-title">Explanation</div>
+          <p id="summary" class="summary">No indicators have been evaluated yet.</p>
+          <div id="indicator-list" class="indicator-list empty">No matched indicators</div>
+        </div>
+
+        <div class="panel history-panel">
+          <div class="section-title">Recent analyses</div>
+          <div id="history-list" class="history-list empty">No local history yet</div>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

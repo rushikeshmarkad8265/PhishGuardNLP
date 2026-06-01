@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+
+credentials.json
+token.json
+analysis_history.json
+server.log
+server.err.log
+*.pdf
+
+.env
+.venv/
+venv/
