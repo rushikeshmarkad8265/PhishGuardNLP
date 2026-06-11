@@ -48,6 +48,11 @@ def get_profile() -> dict[str, Any]:
     }
 
 
+def disconnect_account() -> None:
+    if TOKEN_FILE.exists():
+        TOKEN_FILE.unlink()
+
+
 def build_gmail_service(force_auth: bool = False):
     if not gmail_dependencies_available():
         raise RuntimeError("Missing Gmail API packages. Run: pip install -r requirements.txt")
@@ -74,38 +79,28 @@ def build_gmail_service(force_auth: bool = False):
     return build("gmail", "v1", credentials=creds)
 
 
-def scan_messages(max_results: int = 10, query: str = "newer_than:30d") -> list[dict[str, Any]]:
+def scan_messages(max_results: int = 10, query: str = "newer_than:30d", page_token: str | None = None) -> dict[str, Any]:
     service = build_gmail_service()
     scanned = []
-    page_token = None
+    request = {
+        "userId": "me",
+        "maxResults": max_results,
+    }
+    if query:
+        request["q"] = query
+    if page_token:
+        request["pageToken"] = page_token
 
-    while len(scanned) < max_results:
-        remaining = max_results - len(scanned)
-        request = {
-            "userId": "me",
-            "maxResults": min(100, remaining),
-        }
-        if query:
-            request["q"] = query
-        if page_token:
-            request["pageToken"] = page_token
+    response = service.users().messages().list(**request).execute()
+    for item in response.get("messages", []):
+        message = service.users().messages().get(userId="me", id=item["id"], format="full").execute()
+        scanned.append(parse_message(message))
 
-        response = service.users().messages().list(**request).execute()
-        messages = response.get("messages", [])
-        if not messages:
-            break
-
-        for item in messages:
-            message = service.users().messages().get(userId="me", id=item["id"], format="full").execute()
-            scanned.append(parse_message(message))
-            if len(scanned) >= max_results:
-                break
-
-        page_token = response.get("nextPageToken")
-        if not page_token:
-            break
-
-    return scanned
+    return {
+        "messages": scanned,
+        "next_page_token": response.get("nextPageToken"),
+        "result_size_estimate": response.get("resultSizeEstimate", 0),
+    }
 
 
 def parse_message(message: dict[str, Any]) -> dict[str, Any]:

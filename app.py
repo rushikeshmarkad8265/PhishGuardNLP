@@ -10,7 +10,7 @@ from urllib.parse import urlparse
 
 from flask import Flask, jsonify, render_template, request
 
-from gmail_service import build_gmail_service, get_profile, get_setup_status, link_domain, scan_messages
+from gmail_service import disconnect_account, build_gmail_service, get_profile, get_setup_status, link_domain, scan_messages
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -157,21 +157,24 @@ def create_app() -> Flask:
             return jsonify({"ok": False, "error": str(exc), "status": get_setup_status()}), 400
         return jsonify({"ok": True, "status": get_setup_status()})
 
+    @app.post("/api/gmail/disconnect")
+    def gmail_disconnect():
+        disconnect_account()
+        return jsonify({"ok": True, "status": get_setup_status()})
+
     @app.get("/api/gmail/scan")
     def gmail_scan():
-        scan_all = request.args.get("all", "false").lower() == "true"
         try:
-            limit = max(1, min(5000, int(request.args.get("limit", 10))))
+            limit = max(1, min(50, int(request.args.get("limit", 15))))
         except ValueError:
-            limit = 10
-        query = request.args.get("query", "newer_than:30d")
-        if scan_all:
-            query = request.args.get("query", "in:anywhere") or "in:anywhere"
+            limit = 15
+        query = request.args.get("query", "in:anywhere")
+        page_token = request.args.get("page_token") or None
 
         try:
-            messages = scan_messages(max_results=limit, query=query)
+            page = scan_messages(max_results=limit, query=query, page_token=page_token)
             results = []
-            for message in messages:
+            for message in page["messages"]:
                 result = analyze(message["subject"], message["body"], message["metadata"])
                 result["gmail_id"] = message["gmail_id"]
                 result["thread_id"] = message["thread_id"]
@@ -187,7 +190,13 @@ def create_app() -> Flask:
         except Exception as exc:
             return jsonify({"ok": False, "error": str(exc), "status": get_setup_status()}), 400
 
-        return jsonify({"ok": True, "messages": results, "count": len(results)})
+        return jsonify({
+            "ok": True,
+            "messages": results,
+            "count": len(results),
+            "next_page_token": page["next_page_token"],
+            "result_size_estimate": page["result_size_estimate"],
+        })
 
     @app.get("/api/history")
     def history():

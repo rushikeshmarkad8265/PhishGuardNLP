@@ -24,13 +24,11 @@
           <div class="gmail-actions">
             <button class="primary" type="button" id="connect-gmail-btn">Connect Gmail</button>
             <button class="secondary" type="button" id="scan-gmail-btn">Scan inbox</button>
-            <button class="secondary wide-action" type="button" id="scan-all-btn">Scan mailbox</button>
           </div>
           <div class="scan-controls">
             <input id="gmail-query" value="in:anywhere" aria-label="Gmail search query">
-            <input id="gmail-limit" type="number" min="1" max="5000" value="5000" aria-label="Message limit">
+            <input id="gmail-limit" type="number" min="1" max="50" value="15" aria-label="Message limit">
           </div>
-          <div id="live-status" class="live-status">Live scan inactive</div>
         </div>
 
         <form id="email-form" class="email-form">
@@ -60,6 +58,7 @@
               <span>Connected account</span>
               <strong id="account-email">Not connected</strong>
               <small id="account-meta">Gmail read-only mode</small>
+              <button class="link-button" type="button" id="connect-another-btn">Connect another mail</button>
             </div>
           </div>
           <div class="reply-note">
@@ -92,11 +91,11 @@
         <div class="panel mailbox-panel">
           <div class="mailbox-head">
             <div class="section-title">Mailbox security view</div>
-            <div id="mailbox-state" class="mailbox-state">No mailbox scan yet</div>
           </div>
           <div class="mailbox-layout">
             <div class="mailbox-list">
               <div id="gmail-results" class="gmail-results empty">No Gmail messages scanned yet</div>
+              <button class="more-button" type="button" id="more-mails-btn" hidden>More</button>
             </div>
             <article id="mail-reader" class="mail-reader empty">Select a message to read its content.</article>
             <aside class="security-panel">

@@ -7,12 +7,11 @@ const historyList = document.querySelector("#history-list");
 const gmailStatus = document.querySelector("#gmail-status");
 const connectGmailBtn = document.querySelector("#connect-gmail-btn");
 const scanGmailBtn = document.querySelector("#scan-gmail-btn");
-const scanAllBtn = document.querySelector("#scan-all-btn");
+const connectAnotherBtn = document.querySelector("#connect-another-btn");
 const gmailQuery = document.querySelector("#gmail-query");
 const gmailLimit = document.querySelector("#gmail-limit");
 const gmailResults = document.querySelector("#gmail-results");
-const liveStatus = document.querySelector("#live-status");
-const mailboxState = document.querySelector("#mailbox-state");
+const moreMailsBtn = document.querySelector("#more-mails-btn");
 const mailReader = document.querySelector("#mail-reader");
 const riskBand = document.querySelector("#risk-band");
 const riskTag = document.querySelector("#risk-tag");
@@ -37,11 +36,10 @@ const metricIds = {
 };
 
 const wordCount = document.querySelector("#word-count");
-const liveScanMs = 30000;
 let gmailMessages = [];
 let selectedGmailId = "";
-let liveScanTimer = null;
 let scanInProgress = false;
+let nextPageToken = "";
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -55,6 +53,10 @@ clearBtn.addEventListener("click", () => {
 });
 
 connectGmailBtn.addEventListener("click", async () => {
+  await connectGmail();
+});
+
+async function connectGmail() {
   setGmailBusy(true, "Connecting...");
   try {
     const response = await fetch("/api/gmail/connect", { method: "POST" });
@@ -65,22 +67,47 @@ connectGmailBtn.addEventListener("click", async () => {
     }
     renderGmailStatus(data.status);
     await loadGmailProfile();
-    startLiveScan();
+    await resetAndScan();
   } catch (error) {
     await loadGmailStatus();
     gmailStatus.textContent = `${gmailStatus.textContent} Connection could not start from the browser.`;
   } finally {
     setGmailBusy(false);
   }
-});
+}
 
 scanGmailBtn.addEventListener("click", async () => {
-  await scanGmail({ silent: false, selectFirst: true, all: false });
+  await resetAndScan();
 });
 
-scanAllBtn.addEventListener("click", async () => {
-  await scanGmail({ silent: false, selectFirst: true, all: true });
+connectAnotherBtn.addEventListener("click", async () => {
+  setGmailBusy(true, "Switching...");
+  try {
+    await fetch("/api/gmail/disconnect", { method: "POST" });
+    gmailMessages = [];
+    nextPageToken = "";
+    selectedGmailId = "";
+    renderGmailResults([]);
+    renderScanOverview();
+    collapseSelectedMail();
+    await connectGmail();
+  } finally {
+    setGmailBusy(false);
+  }
 });
+
+moreMailsBtn.addEventListener("click", async () => {
+  if (!nextPageToken) return;
+  await scanGmail({ append: true, selectFirst: false });
+});
+
+async function resetAndScan() {
+  gmailMessages = [];
+  nextPageToken = "";
+  selectedGmailId = "";
+  collapseSelectedMail();
+  await scanGmail({ append: false, selectFirst: true });
+}
 
 async function analyzeEmail() {
   const subject = subjectInput.value.trim();
@@ -109,26 +136,24 @@ async function analyzeEmail() {
 }
 
 async function scanGmail(options = {}) {
-  const silent = Boolean(options.silent);
+  const append = Boolean(options.append);
   const selectFirst = options.selectFirst !== false;
-  const scanAll = Boolean(options.all);
   if (scanInProgress) return;
 
   scanInProgress = true;
-  if (!silent) {
-    setGmailBusy(true, scanAll ? "Scanning mailbox..." : "Scanning...");
+  setGmailBusy(true, append ? "Loading..." : "Scanning...");
+  if (!append) {
     gmailResults.className = "gmail-results empty";
-    gmailResults.textContent = scanAll ? "Scanning mailbox. This can take a little while..." : "Scanning Gmail messages...";
-    mailboxState.textContent = "Scanning...";
   }
-  updateLiveStatus("Checking inbox...");
 
-  const query = scanAll ? (gmailQuery.value.trim() || "in:anywhere") : "in:inbox newer_than:1d";
+  const query = gmailQuery.value.trim() || "in:anywhere";
   const params = new URLSearchParams({
     query,
-    limit: gmailLimit.value || "10",
-    all: scanAll ? "true" : "false",
+    limit: gmailLimit.value || "15",
   });
+  if (append && nextPageToken) {
+    params.set("page_token", nextPageToken);
+  }
 
   try {
     const response = await fetch(`/api/gmail/scan?${params.toString()}`);
@@ -138,24 +163,20 @@ async function scanGmail(options = {}) {
       gmailResults.textContent = data.error || "Gmail scan failed.";
       return;
     }
-    const newCount = mergeGmailMessages(data.messages);
+    mergeGmailMessages(data.messages);
+    nextPageToken = data.next_page_token || "";
     renderGmailResults(gmailMessages);
     renderScanOverview();
     if (selectFirst && gmailMessages.length && !selectedGmailId) {
       openSelectedMail(gmailMessages[0]);
     }
-    mailboxState.textContent = `${gmailMessages.length} scanned mail(s) loaded`;
-    updateLiveStatus(newCount ? `${newCount} new mail(s) analyzed` : "Inbox checked, no new mail");
+    updateMoreButton();
     await loadHistory();
   } catch (error) {
     gmailResults.textContent = "Gmail scan failed. Check that the server is running.";
-    mailboxState.textContent = "Scan failed";
-    updateLiveStatus("Live scan paused after an error");
   } finally {
     scanInProgress = false;
-    if (!silent) {
-      setGmailBusy(false);
-    }
+    setGmailBusy(false);
   }
 }
 
@@ -180,6 +201,10 @@ function mergeGmailMessages(messages) {
   return newCount;
 }
 
+function updateMoreButton() {
+  moreMailsBtn.hidden = !nextPageToken || !gmailMessages.length;
+}
+
 function renderScanOverview() {
   const counts = gmailMessages.reduce((acc, message) => {
     const tag = String(message.risk_tag || "").toLowerCase();
@@ -200,6 +225,7 @@ function renderGmailResults(messages) {
   if (!messages.length) {
     gmailResults.className = "gmail-results empty";
     gmailResults.textContent = "No Gmail messages matched this query.";
+    updateMoreButton();
     return;
   }
 
@@ -270,25 +296,8 @@ function renderMailReader(message) {
   const date = message.date || "Unknown date";
   const body = message.body || message.snippet || "No readable plain-text content was found in this message.";
   const accountSecurity = isAccountSecurityMail(message);
-  const reasons = message.indicators?.length
-    ? message.indicators.map((indicator) => `
-      <li>
-        <strong>${escapeHtml(indicator.label)}</strong>
-        <span>${escapeHtml(indicator.description)}</span>
-        <em>Matched: ${indicator.phrases.map(escapeHtml).join(", ")}</em>
-      </li>
-    `).join("")
-    : "<li><strong>No matched indicators</strong><span>No major risk reason was detected.</span></li>";
-
-  const links = message.links?.length
-    ? message.links.map((link) => `<li>${escapeHtml(link)}</li>`).join("")
-    : "<li>No links found</li>";
-
-  const attachments = message.attachments?.length
-    ? message.attachments.map((file) => `
-      <li>${escapeHtml(file.filename || "attachment")} <span>${escapeHtml(file.mime_type || "")}</span></li>
-    `).join("")
-    : "<li>No attachments found</li>";
+  const linkCount = message.links?.length || 0;
+  const attachmentCount = message.attachments?.length || 0;
 
   mailReader.className = `mail-reader ${accountSecurity ? "account-security-reader" : ""}`;
   mailReader.innerHTML = `
@@ -303,20 +312,15 @@ function renderMailReader(message) {
       <div><span>Sender</span><strong>${escapeHtml(sender)}</strong></div>
       <div><span>Date</span><strong>${escapeHtml(date)}</strong></div>
     </div>
-    <div class="mail-block">
-      <h2>Risk reasons</h2>
-      <ul class="reason-list">${reasons}</ul>
-    </div>
-    <div class="mail-columns">
-      <div class="mail-block">
-        <h2>Links</h2>
-        <ul>${links}</ul>
-      </div>
-      <div class="mail-block">
-        <h2>Attachments</h2>
-        <ul>${attachments}</ul>
-      </div>
-    </div>
+    <table class="mail-summary-table">
+      <tbody>
+        <tr><th>Risk</th><td>${escapeHtml(message.risk_tag)} (${message.risk_score})</td></tr>
+        <tr><th>Links</th><td>${linkCount}</td></tr>
+        <tr><th>Attachments</th><td>${attachmentCount}</td></tr>
+        <tr><th>Words</th><td>${message.word_count || 0}</td></tr>
+        <tr><th>Summary</th><td>${escapeHtml(message.summary || "No summary available.")}</td></tr>
+      </tbody>
+    </table>
     <div class="mail-block">
       <h2>Full mail content</h2>
       <pre>${escapeHtml(body)}</pre>
@@ -393,8 +397,9 @@ function resetResults() {
   indicatorList.textContent = "No matched indicators";
   collapseSelectedMail();
   gmailMessages = [];
+  nextPageToken = "";
   renderScanOverview();
-  mailboxState.textContent = "No mailbox scan yet";
+  updateMoreButton();
   wordCount.textContent = "0";
   Object.values(metricIds).forEach((node) => {
     node.textContent = "0";
@@ -408,7 +413,7 @@ async function loadGmailStatus() {
     renderGmailStatus(status);
     if (status.connected) {
       await loadGmailProfile();
-      startLiveScan();
+      await resetAndScan();
     }
   } catch (error) {
     gmailStatus.textContent = "Unable to check Gmail setup.";
@@ -429,10 +434,8 @@ function renderGmailStatus(status, error = "") {
     gmailStatus.textContent = `${error ? `${error} ` : ""}Setup needed: ${missing.join(", ")}.`;
   } else if (status.connected) {
     gmailStatus.textContent = "Connected with Gmail read-only access.";
-    updateLiveStatus("Live scan active");
   } else {
     gmailStatus.textContent = "Ready to connect. Sign in with Google to create token.json.";
-    stopLiveScan();
   }
 }
 
@@ -458,33 +461,11 @@ function renderGmailProfile(profile) {
   accountMeta.textContent = `${Number(profile.messages_total || 0).toLocaleString()} mails | ${Number(profile.threads_total || 0).toLocaleString()} threads`;
 }
 
-function startLiveScan() {
-  if (liveScanTimer) return;
-  updateLiveStatus("Live scan active");
-  scanGmail({ silent: true, selectFirst: false });
-  liveScanTimer = window.setInterval(() => {
-    scanGmail({ silent: true, selectFirst: false });
-  }, liveScanMs);
-}
-
-function stopLiveScan() {
-  if (liveScanTimer) {
-    window.clearInterval(liveScanTimer);
-    liveScanTimer = null;
-  }
-  updateLiveStatus("Live scan inactive");
-}
-
-function updateLiveStatus(message) {
-  if (!liveStatus) return;
-  const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-  liveStatus.textContent = `${message} | ${time}`;
-}
-
 function setGmailBusy(isBusy, label = "") {
   connectGmailBtn.disabled = isBusy;
   scanGmailBtn.disabled = isBusy;
-  scanAllBtn.disabled = isBusy;
+  connectAnotherBtn.disabled = isBusy;
+  moreMailsBtn.disabled = isBusy;
   if (label) {
     scanGmailBtn.textContent = label;
   } else {
@@ -546,13 +527,6 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
-}
-
-function cssEscape(value) {
-  if (window.CSS && typeof window.CSS.escape === "function") {
-    return CSS.escape(String(value));
-  }
-  return String(value).replace(/["\\]/g, "\\$&");
 }
 
 loadSamples();

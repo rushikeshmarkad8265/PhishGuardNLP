@@ -119,26 +119,11 @@ label {
   line-height: 1.4;
 }
 
-.live-status {
-  min-height: 32px;
-  padding: 7px 9px;
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  color: #334155;
-  background: #fff;
-  font-size: 13px;
-  font-weight: 750;
-}
-
 .gmail-actions,
 .scan-controls {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
-}
-
-.wide-action {
-  grid-column: 1 / -1;
 }
 
 .scan-controls input {
@@ -433,12 +418,6 @@ button {
   background: #fbfcfd;
 }
 
-.mailbox-state {
-  color: var(--muted);
-  font-size: 13px;
-  font-weight: 750;
-}
-
 .mailbox-layout {
   display: grid;
   grid-template-columns: minmax(240px, 0.86fr) minmax(360px, 1.35fr) minmax(310px, 0.9fr);
@@ -629,6 +608,44 @@ button {
 .mail-block h2 {
   margin: 0 0 10px;
   font-size: 15px;
+}
+
+.mail-summary-table {
+  width: 100%;
+  margin: 10px 0;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 13px;
+}
+
+.mail-summary-table th,
+.mail-summary-table td {
+  padding: 7px 8px;
+  border: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.mail-summary-table th {
+  width: 112px;
+  color: var(--muted);
+  background: #f8fafc;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.more-button {
+  width: 100%;
+  margin-top: 10px;
+  border: 1px solid var(--line);
+  color: var(--blue);
+  background: #fff;
+}
+
+.more-button:hover {
+  background: #eef6fb;
 }
 
 .mail-block ul {
