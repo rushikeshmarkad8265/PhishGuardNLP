@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import base64
+from html import unescape
+from html.parser import HTMLParser
 import re
 from email.utils import parseaddr
 from pathlib import Path
@@ -106,12 +108,15 @@ def scan_messages(max_results: int = 10, query: str = "newer_than:30d", page_tok
 def parse_message(message: dict[str, Any]) -> dict[str, Any]:
     payload = message.get("payload", {})
     headers = header_map(payload.get("headers", []))
-    body_parts: list[str] = []
+    plain_parts: list[str] = []
+    html_parts: list[str] = []
+    embedded_links: list[str] = []
     attachments: list[dict[str, Any]] = []
 
-    collect_parts(payload, body_parts, attachments)
-    body = "\n".join(part for part in body_parts if part).strip()
-    links = extract_links(f"{headers.get('subject', '')}\n{body}")
+    collect_parts(payload, plain_parts, html_parts, embedded_links, attachments)
+    selected_parts = plain_parts or html_parts
+    body = "\n\n".join(part.strip() for part in selected_parts if part.strip()).strip()
+    links = unique_links(embedded_links + extract_links(f"{headers.get('subject', '')}\n{body}"))
 
     return {
         "gmail_id": message.get("id"),
@@ -136,7 +141,13 @@ def header_map(headers: list[dict[str, str]]) -> dict[str, str]:
     return result
 
 
-def collect_parts(part: dict[str, Any], body_parts: list[str], attachments: list[dict[str, Any]]) -> None:
+def collect_parts(
+    part: dict[str, Any],
+    plain_parts: list[str],
+    html_parts: list[str],
+    embedded_links: list[str],
+    attachments: list[dict[str, Any]],
+) -> None:
     filename = part.get("filename") or ""
     body = part.get("body", {})
     mime_type = part.get("mimeType", "")
@@ -154,12 +165,51 @@ def collect_parts(part: dict[str, Any], body_parts: list[str], attachments: list
     data = body.get("data")
     if data and mime_type in {"text/plain", "text/html"}:
         decoded = decode_body(data)
-        if mime_type == "text/html":
-            decoded = re.sub(r"<[^>]+>", " ", decoded)
-        body_parts.append(decoded)
+        embedded_links.extend(extract_links(decoded))
+        if mime_type == "text/html" or looks_like_html(decoded):
+            html_parts.append(html_to_text(decoded))
+        else:
+            plain_parts.append(decoded)
 
     for child in part.get("parts", []) or []:
-        collect_parts(child, body_parts, attachments)
+        collect_parts(child, plain_parts, html_parts, embedded_links, attachments)
+
+
+class _VisibleTextParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.hidden_depth = 0
+        self.parts: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag in {"style", "script", "head"}:
+            self.hidden_depth += 1
+        elif not self.hidden_depth and tag in {"br", "p", "div", "li", "tr", "h1", "h2", "h3"}:
+            self.parts.append("\n")
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag in {"style", "script", "head"} and self.hidden_depth:
+            self.hidden_depth -= 1
+        elif not self.hidden_depth and tag in {"p", "div", "li", "tr", "h1", "h2", "h3"}:
+            self.parts.append("\n")
+
+    def handle_data(self, data: str) -> None:
+        if not self.hidden_depth:
+            self.parts.append(data)
+
+
+def html_to_text(value: str) -> str:
+    parser = _VisibleTextParser()
+    parser.feed(value)
+    text = unescape("".join(parser.parts)).replace("\xa0", " ")
+    text = re.sub(r"[ \t]+", " ", text)
+    text = re.sub(r"\n\s*\n\s*\n+", "\n\n", text)
+    return text.strip()
+
+
+def looks_like_html(value: str) -> bool:
+    tags = re.findall(r"</?(?:html|body|table|tbody|tr|td|div|p|a|img|span)\b", value, re.IGNORECASE)
+    return len(tags) >= 2
 
 
 def decode_body(data: str) -> str:
@@ -177,7 +227,11 @@ def extract_links(text: str) -> list[str]:
         cleaned = link.rstrip(".,;:!?]")
         if cleaned not in normalized:
             normalized.append(cleaned)
-    return normalized[:25]
+    return normalized
+
+
+def unique_links(links: list[str]) -> list[str]:
+    return list(dict.fromkeys(links))
 
 
 def build_metadata(headers: dict[str, str], links: list[str], attachments: list[dict[str, Any]]) -> dict[str, Any]:

@@ -7,46 +7,32 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
 <body>
+  <header class="app-header">
+    <div class="header-brand">
+      <div class="mark">PG</div>
+      <div>
+        <strong>PhishGuard</strong>
+        <small>NLP Email Security Project</small>
+      </div>
+    </div>
+    <div class="search-bar" aria-label="Mailbox scope">Gmail inbox scanner</div>
+    <div class="header-account" id="header-account">Gmail read-only</div>
+  </header>
   <main class="shell">
     <section class="workspace">
       <aside class="panel input-panel">
-        <div class="brand">
-          <div class="mark">PG</div>
-          <div>
-            <h1>PhishGuard</h1>
-            <p>Gmail risk tagging with text, metadata, links, and attachments</p>
-          </div>
-        </div>
-
-        <div class="gmail-box">
-          <div class="section-title">Gmail API</div>
+        <div class="nav-stack">
+          <button class="nav-item active" type="button" id="scan-gmail-btn">
+            <span>Inbox security</span>
+            <strong id="mail-count">0</strong>
+          </button>
+          <div class="nav-stat"><span>High risk</span><strong class="tag-high" id="high-count">0</strong></div>
+          <div class="nav-stat"><span>Medium risk</span><strong class="tag-medium" id="medium-count">0</strong></div>
+          <div class="nav-stat"><span>Low risk</span><strong class="tag-low" id="low-count">0</strong></div>
+          <button class="nav-item" type="button" id="connect-gmail-btn">
+            <span>Connect Gmail</span>
+          </button>
           <div id="gmail-status" class="setup-status">Checking Gmail setup...</div>
-          <div class="gmail-actions">
-            <button class="primary" type="button" id="connect-gmail-btn">Connect Gmail</button>
-            <button class="secondary" type="button" id="scan-gmail-btn">Scan inbox</button>
-          </div>
-          <div class="scan-controls">
-            <input id="gmail-query" value="in:anywhere" aria-label="Gmail search query">
-            <input id="gmail-limit" type="number" min="1" max="50" value="15" aria-label="Message limit">
-          </div>
-        </div>
-
-        <form id="email-form" class="email-form">
-          <label for="subject">Subject</label>
-          <input id="subject" name="subject" autocomplete="off" placeholder="Account verification required">
-
-          <label for="body">Email body</label>
-          <textarea id="body" name="body" spellcheck="true" placeholder="Paste the email content here..."></textarea>
-
-          <div class="actions">
-            <button class="primary" type="submit">Analyze risk</button>
-            <button class="secondary" type="button" id="clear-btn">Clear</button>
-          </div>
-        </form>
-
-        <div class="samples">
-          <div class="section-title">Case studies</div>
-          <div id="sample-list" class="sample-list"></div>
         </div>
       </aside>
 
@@ -58,39 +44,22 @@
               <span>Connected account</span>
               <strong id="account-email">Not connected</strong>
               <small id="account-meta">Gmail read-only mode</small>
-              <button class="link-button" type="button" id="connect-another-btn">Connect another mail</button>
+              <button class="link-button" type="button" id="connect-another-btn">Connect another account</button>
             </div>
           </div>
           <div class="reply-note">
-            <span>Reply mode</span>
-            <strong>Read-only</strong>
-          </div>
-        </div>
-
-        <div class="guidance" id="guidance">Connect Gmail to scan real messages, or paste an email for manual testing.</div>
-
-        <div class="overview-grid">
-          <div class="overview-card">
-            <span>Scanned mails</span>
-            <strong id="mail-count">0</strong>
-          </div>
-          <div class="overview-card">
-            <span>High risk</span>
-            <strong id="high-count">0</strong>
-          </div>
-          <div class="overview-card">
-            <span>Medium risk</span>
-            <strong id="medium-count">0</strong>
-          </div>
-          <div class="overview-card">
-            <span>Low risk</span>
-            <strong id="low-count">0</strong>
+            <span>Access</span>
+            <strong>Read only</strong>
           </div>
         </div>
 
         <div class="panel mailbox-panel">
           <div class="mailbox-head">
-            <div class="section-title">Mailbox security view</div>
+            <div>
+              <div class="section-title">Inbox</div>
+              <p>Select an email to view its content and risk analysis.</p>
+            </div>
+            <button class="secondary compact-button" type="button" id="refresh-inbox-btn">Refresh</button>
           </div>
           <div class="mailbox-layout">
             <div class="mailbox-list">
@@ -118,10 +87,10 @@
                   <span>Professional</span>
                   <strong id="professional-score">0</strong>
                 </div>
-                <div class="metric">
+                <button class="metric metric-button" type="button" id="links-metric" aria-expanded="false">
                   <span>Links</span>
                   <strong id="links-score">0</strong>
-                </div>
+                </button>
                 <div class="metric">
                   <span>Attachments</span>
                   <strong id="attachments-score">0</strong>
@@ -136,6 +105,14 @@
                 </div>
               </div>
 
+              <div class="mail-links" id="mail-links" hidden>
+                <div class="mail-links-head">
+                  <div class="section-title">Links in this mail</div>
+                  <button type="button" id="close-links-btn" aria-label="Close links">&times;</button>
+                </div>
+                <div id="mail-links-list" class="mail-links-list"></div>
+              </div>
+
               <div class="security-explanation">
                 <div class="section-title">Security risk</div>
                 <p id="summary" class="summary">No indicators have been evaluated yet.</p>
@@ -145,10 +122,6 @@
           </div>
         </div>
 
-        <div class="panel history-panel">
-          <div class="section-title">Recent analyses</div>
-          <div id="history-list" class="history-list empty">No local history yet</div>
-        </div>
       </section>
     </section>
   </main>

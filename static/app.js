@@ -1,31 +1,28 @@
-const form = document.querySelector("#email-form");
-const subjectInput = document.querySelector("#subject");
-const bodyInput = document.querySelector("#body");
-const clearBtn = document.querySelector("#clear-btn");
-const sampleList = document.querySelector("#sample-list");
-const historyList = document.querySelector("#history-list");
 const gmailStatus = document.querySelector("#gmail-status");
 const connectGmailBtn = document.querySelector("#connect-gmail-btn");
 const scanGmailBtn = document.querySelector("#scan-gmail-btn");
 const connectAnotherBtn = document.querySelector("#connect-another-btn");
-const gmailQuery = document.querySelector("#gmail-query");
-const gmailLimit = document.querySelector("#gmail-limit");
+const refreshInboxBtn = document.querySelector("#refresh-inbox-btn");
 const gmailResults = document.querySelector("#gmail-results");
 const moreMailsBtn = document.querySelector("#more-mails-btn");
 const mailReader = document.querySelector("#mail-reader");
 const riskBand = document.querySelector("#risk-band");
 const riskTag = document.querySelector("#risk-tag");
 const riskScore = document.querySelector("#risk-score");
-const guidance = document.querySelector("#guidance");
 const summary = document.querySelector("#summary");
 const indicatorList = document.querySelector("#indicator-list");
 const accountAvatar = document.querySelector("#account-avatar");
 const accountEmail = document.querySelector("#account-email");
 const accountMeta = document.querySelector("#account-meta");
+const headerAccount = document.querySelector("#header-account");
 const mailCount = document.querySelector("#mail-count");
 const highCount = document.querySelector("#high-count");
 const mediumCount = document.querySelector("#medium-count");
 const lowCount = document.querySelector("#low-count");
+const linksMetric = document.querySelector("#links-metric");
+const mailLinks = document.querySelector("#mail-links");
+const mailLinksList = document.querySelector("#mail-links-list");
+const closeLinksBtn = document.querySelector("#close-links-btn");
 
 const metricIds = {
   Emotional: document.querySelector("#emotional-score"),
@@ -36,20 +33,23 @@ const metricIds = {
 };
 
 const wordCount = document.querySelector("#word-count");
+const pageSize = 15;
+const gmailQuery = "in:anywhere";
 let gmailMessages = [];
 let selectedGmailId = "";
 let scanInProgress = false;
 let nextPageToken = "";
 
-form.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  await analyzeEmail();
+linksMetric.addEventListener("click", () => {
+  if (!selectedGmailId) return;
+  const isOpen = !mailLinks.hidden;
+  mailLinks.hidden = isOpen;
+  linksMetric.setAttribute("aria-expanded", String(!isOpen));
 });
 
-clearBtn.addEventListener("click", () => {
-  subjectInput.value = "";
-  bodyInput.value = "";
-  resetResults();
+closeLinksBtn.addEventListener("click", () => {
+  mailLinks.hidden = true;
+  linksMetric.setAttribute("aria-expanded", "false");
 });
 
 connectGmailBtn.addEventListener("click", async () => {
@@ -77,6 +77,10 @@ async function connectGmail() {
 }
 
 scanGmailBtn.addEventListener("click", async () => {
+  await resetAndScan();
+});
+
+refreshInboxBtn.addEventListener("click", async () => {
   await resetAndScan();
 });
 
@@ -109,32 +113,6 @@ async function resetAndScan() {
   await scanGmail({ append: false, selectFirst: true });
 }
 
-async function analyzeEmail() {
-  const subject = subjectInput.value.trim();
-  const body = bodyInput.value.trim();
-
-  if (!subject && !body) {
-    guidance.textContent = "Enter a subject or body before analysis.";
-    return;
-  }
-
-  setBusy(true);
-  try {
-    const response = await fetch("/api/analyze", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ subject, body }),
-    });
-    const result = await response.json();
-    renderResult(result);
-    await loadHistory();
-  } catch (error) {
-    guidance.textContent = "The backend did not respond. Check that Flask is running.";
-  } finally {
-    setBusy(false);
-  }
-}
-
 async function scanGmail(options = {}) {
   const append = Boolean(options.append);
   const selectFirst = options.selectFirst !== false;
@@ -146,10 +124,9 @@ async function scanGmail(options = {}) {
     gmailResults.className = "gmail-results empty";
   }
 
-  const query = gmailQuery.value.trim() || "in:anywhere";
   const params = new URLSearchParams({
-    query,
-    limit: gmailLimit.value || "15",
+    query: gmailQuery,
+    limit: String(pageSize),
   });
   if (append && nextPageToken) {
     params.set("page_token", nextPageToken);
@@ -171,7 +148,6 @@ async function scanGmail(options = {}) {
       openSelectedMail(gmailMessages[0]);
     }
     updateMoreButton();
-    await loadHistory();
   } catch (error) {
     gmailResults.textContent = "Gmail scan failed. Check that the server is running.";
   } finally {
@@ -273,6 +249,7 @@ function openSelectedMail(message) {
   selectedGmailId = message.gmail_id || message.subject || "";
   renderResult(message);
   renderMailReader(message);
+  renderMailLinks(message.links || []);
   markSelectedMail();
 }
 
@@ -280,7 +257,26 @@ function collapseSelectedMail() {
   selectedGmailId = "";
   mailReader.className = "mail-reader empty";
   mailReader.textContent = "Select a message to read its content.";
+  renderMailLinks([]);
   markSelectedMail();
+}
+
+function renderMailLinks(links) {
+  mailLinks.hidden = true;
+  linksMetric.setAttribute("aria-expanded", "false");
+  if (!links.length) {
+    mailLinksList.className = "mail-links-list empty";
+    mailLinksList.textContent = "No links detected in this mail.";
+    return;
+  }
+
+  mailLinksList.className = "mail-links-list";
+  mailLinksList.innerHTML = links.map((link, index) => `
+    <a href="${escapeHtml(link)}" target="_blank" rel="noopener noreferrer">
+      <span>${index + 1}</span>
+      <span>${escapeHtml(link)}</span>
+    </a>
+  `).join("");
 }
 
 function markSelectedMail() {
@@ -323,7 +319,7 @@ function renderMailReader(message) {
     </table>
     <div class="mail-block">
       <h2>Full mail content</h2>
-      <pre>${escapeHtml(body)}</pre>
+      <div class="mail-body">${escapeHtml(body)}</div>
     </div>
   `;
 }
@@ -357,7 +353,6 @@ function renderResult(result) {
   riskTag.textContent = `${tag} Risk`;
   riskTag.className = `risk-tag tag-${tagClass}`;
   riskScore.textContent = result.risk_score;
-  guidance.textContent = result.guidance;
   summary.textContent = result.summary;
   wordCount.textContent = result.word_count;
 
@@ -391,7 +386,6 @@ function resetResults() {
   riskTag.className = "risk-tag";
   riskTag.textContent = "Awaiting analysis";
   riskScore.textContent = "0";
-  guidance.textContent = "Connect Gmail to scan real messages, or paste an email for manual testing.";
   summary.textContent = "No indicators have been evaluated yet.";
   indicatorList.className = "indicator-list empty";
   indicatorList.textContent = "No matched indicators";
@@ -459,65 +453,20 @@ function renderGmailProfile(profile) {
   accountAvatar.textContent = profile.initial || "G";
   accountEmail.textContent = profile.email || "Connected Gmail";
   accountMeta.textContent = `${Number(profile.messages_total || 0).toLocaleString()} mails | ${Number(profile.threads_total || 0).toLocaleString()} threads`;
+  headerAccount.textContent = profile.email || "Connected Gmail";
 }
 
 function setGmailBusy(isBusy, label = "") {
   connectGmailBtn.disabled = isBusy;
   scanGmailBtn.disabled = isBusy;
   connectAnotherBtn.disabled = isBusy;
+  refreshInboxBtn.disabled = isBusy;
   moreMailsBtn.disabled = isBusy;
   if (label) {
     scanGmailBtn.textContent = label;
   } else {
-    scanGmailBtn.textContent = "Scan inbox";
+    scanGmailBtn.textContent = "Inbox security";
   }
-}
-
-async function loadSamples() {
-  const response = await fetch("/api/samples");
-  const samples = await response.json();
-  sampleList.innerHTML = samples.map((sample, index) => `
-    <button class="sample-btn" type="button" data-index="${index}">
-      ${escapeHtml(sample.name)}
-    </button>
-  `).join("");
-
-  sampleList.querySelectorAll("button").forEach((button) => {
-    button.addEventListener("click", async () => {
-      const sample = samples[Number(button.dataset.index)];
-      subjectInput.value = sample.subject;
-      bodyInput.value = sample.body;
-      await analyzeEmail();
-    });
-  });
-}
-
-async function loadHistory() {
-  const response = await fetch("/api/history");
-  const history = await response.json();
-
-  if (!history.length) {
-    historyList.className = "history-list empty";
-    historyList.textContent = "No local history yet";
-    return;
-  }
-
-  historyList.className = "history-list";
-  historyList.innerHTML = history.slice().reverse().map((item) => {
-    const tag = String(item.risk_tag).toLowerCase();
-    return `
-      <div class="history-item">
-        <span class="history-subject">${escapeHtml(item.subject)}</span>
-        <strong class="tag-${tag}">${escapeHtml(item.risk_tag)} ${item.risk_score}</strong>
-      </div>
-    `;
-  }).join("");
-}
-
-function setBusy(isBusy) {
-  const submit = form.querySelector("button[type='submit']");
-  submit.disabled = isBusy;
-  submit.textContent = isBusy ? "Analyzing..." : "Analyze risk";
 }
 
 function escapeHtml(value) {
@@ -529,6 +478,4 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
-loadSamples();
-loadHistory();
 loadGmailStatus();
